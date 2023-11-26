@@ -1,16 +1,20 @@
 mod plugin_manager;
+mod static_logger;
 
 use crate::plugin_manager::PluginManager;
-use env_logger::Builder;
+use crate::static_logger::initialize_logger;
+use env_logger::Logger;
 use log::{error, info};
 use std::ffi::OsStr;
 
-fn main() {
-    dotenvy::dotenv().ok();
-
-    Builder::new().parse_default_env().init();
-
-    let mut manager = PluginManager::new();
+/// Executed the main function of the application.
+///
+/// # Arguments
+///
+/// * `logger` - A reference to the logger object used for logging messages.
+/// ```
+fn run_main(logger: &'static Logger) {
+    let mut manager = PluginManager::new(logger);
 
     let plugin_path: &OsStr = OsStr::new("target/debug/deps/libexample_plugin.so");
     match unsafe { manager.load_plugin(plugin_path) } {
@@ -29,4 +33,14 @@ fn main() {
     manager.post_operation(&mut data);
 
     info!("Data after applying plugins: {}", data);
+}
+
+/// This function is the entry point of the application.
+///
+/// It initializes the logger using the `env_logger` crate, sets the maximum log level based
+/// on the logger configuration, and calls the `run_main` function.
+fn main() {
+    dotenvy::dotenv().ok();
+    let logger = initialize_logger();
+    run_main(logger.as_static_ref());
 }

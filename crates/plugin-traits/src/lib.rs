@@ -1,3 +1,7 @@
+mod logger;
+
+pub use logger::PluginLogger;
+
 use std::any::Any;
 
 /// Declare a plugin type and its constructor.

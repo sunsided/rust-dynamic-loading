@@ -1,16 +1,22 @@
+use env_logger::Logger;
 use libloading::{Library, Symbol};
 use log::{debug, trace};
 use plugin_traits::ExamplePlugin;
 use std::ffi::OsStr;
 
 pub struct PluginManager {
-    plugins: Vec<Box<dyn ExamplePlugin>>,
+    logger: &'static Logger,
+    plugins: Vec<(
+        Box<dyn ExamplePlugin>,
+        Option<Box<dyn plugin_traits::PluginLogger>>,
+    )>,
     loaded_libraries: Vec<Library>,
 }
 
 impl PluginManager {
-    pub fn new() -> PluginManager {
+    pub fn new(logger: &'static Logger) -> PluginManager {
         PluginManager {
+            logger,
             plugins: Vec::new(),
             loaded_libraries: Vec::new(),
         }
@@ -20,6 +26,10 @@ impl PluginManager {
         &mut self,
         filename: P,
     ) -> Result<(), LoadPluginError> {
+        type LoggerCreate = unsafe fn(
+            log: &'static dyn log::Log,
+            filter: log::LevelFilter,
+        ) -> *mut dyn plugin_traits::PluginLogger;
         type PluginCreate = unsafe fn() -> *mut dyn ExamplePlugin;
 
         debug!("Loading plugin from {:?}", filename.as_ref());
@@ -32,6 +42,18 @@ impl PluginManager {
 
         let lib = self.loaded_libraries.last().unwrap();
 
+        // Attempt to load the logger.
+        let logger = match lib.get::<Symbol<LoggerCreate>>(b"_logger_create") {
+            Ok(constructor) => {
+                debug!("Initializing logger for loaded library");
+                let logger = constructor(self.logger, self.logger.filter());
+                let logger = Box::from_raw(logger);
+                Some(logger)
+            }
+            Err(_) => None,
+        };
+
+        // Load the plugin.
         let constructor: Symbol<PluginCreate> = lib
             .get(b"_plugin_create")
             .map_err(LoadPluginError::PluginCreateNotFound)?;
@@ -44,7 +66,7 @@ impl PluginManager {
             plugin.semantic_version()
         );
         plugin.on_plugin_load();
-        self.plugins.push(plugin);
+        self.plugins.push((plugin, logger));
 
         Ok(())
     }
@@ -53,7 +75,7 @@ impl PluginManager {
     pub fn pre_operation(&mut self, data: &mut u32) {
         debug!("Firing pre_operation hooks");
 
-        for plugin in &mut self.plugins {
+        for (plugin, _) in &mut self.plugins {
             trace!(
                 "Firing pre_operation for {} {}",
                 plugin.name(),
@@ -67,7 +89,7 @@ impl PluginManager {
     pub fn operation(&mut self, data: &mut u32) {
         debug!("Firing operation hooks");
 
-        for plugin in &mut self.plugins {
+        for (plugin, _) in &mut self.plugins {
             trace!(
                 "Firing operation for {} {}",
                 plugin.name(),
@@ -81,7 +103,7 @@ impl PluginManager {
     pub fn post_operation(&mut self, data: &mut u32) {
         debug!("Firing post_operation hooks");
 
-        for plugin in &mut self.plugins {
+        for (plugin, _) in &mut self.plugins {
             trace!(
                 "Firing post_operation for {} {}",
                 plugin.name(),
@@ -96,13 +118,18 @@ impl PluginManager {
     pub fn unload(&mut self) {
         debug!("Unloading plugins");
 
-        for plugin in self.plugins.drain(..) {
+        for (plugin, logger) in self.plugins.drain(..) {
             trace!(
                 "Firing on_plugin_unload for {} {}",
                 plugin.name(),
                 plugin.semantic_version()
             );
             plugin.on_plugin_unload();
+
+            if let Some(logger) = logger {
+                trace!("Unloading logger");
+                logger.unset();
+            }
         }
 
         for lib in self.loaded_libraries.drain(..) {

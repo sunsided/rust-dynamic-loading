@@ -1,6 +1,10 @@
 use log::info;
-use plugin_traits::{declare_plugin, ExamplePlugin, Plugin};
+use plugin_traits::{declare_logger_plugin, declare_plugin, ExamplePlugin, Plugin};
 
+// Export the logging wrapper.
+declare_logger_plugin!();
+
+// Export the actual plugin.
 declare_plugin!(MyExamplePlugin, MyExamplePlugin::default);
 
 #[derive(Debug, Default)]
