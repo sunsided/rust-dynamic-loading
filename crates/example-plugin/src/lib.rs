@@ -16,7 +16,7 @@ impl Plugin for MyExamplePlugin {
     }
 
     fn semantic_version(&self) -> &'static str {
-        "0.1.0+integration-test"
+        env!("CARGO_PKG_VERSION")
     }
 
     fn on_plugin_load(&self) {
