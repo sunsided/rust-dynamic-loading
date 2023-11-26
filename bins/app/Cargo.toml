@@ -1,0 +1,13 @@
+[package]
+name = "app"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+dotenvy = "0.15.7"
+plugin-traits = { path = "../../crates/plugin-traits" }
+log = "0.4.20"
+env_logger = "0.10.1"
+libloading = "0.8.1"
+thiserror = "1.0.50"
+

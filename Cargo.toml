@@ -1,0 +1,14 @@
+[workspace]
+
+default-members = [
+    "bins/app",
+    "crates/example-plugin"
+]
+
+members = [
+    "bins/*",
+    "crates/*"
+]
+
+resolver = "2"
+
